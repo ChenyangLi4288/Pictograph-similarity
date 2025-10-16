@@ -6,8 +6,10 @@ A C++ application that analyzes similarity between images using multiple compute
 
 - Recursively loads all images from a directory
 - Computes similarity using:
-  - **Color Histogram Comparison** (60% weight): Analyzes color distribution
-  - **Structural Similarity** (40% weight): Compares pixel-level structure
+  - **Edge-based Similarity** (40% weight): Analyzes shape and contours using Canny edge detection
+  - **Color Histogram Comparison** (30% weight): Analyzes color distribution
+  - **Binary Mask Structural Similarity** (30% weight): Compares pixel-level structure
+  - **Non-linear Transformation**: Applies cubic transformation to spread similarity scores
 - Generates a full similarity matrix
 - Exports results to CSV format
 - Displays statistics and top similar pairs
@@ -121,7 +123,6 @@ The program generates:
 
 ```
 === Image Similarity Analyzer ===
-Author: Claude Code
 ================================
 
 Loading images from: Data/Images
@@ -153,16 +154,31 @@ Maximum similarity: 0.8967
 
 ### Similarity Metrics
 
-1. **Histogram Comparison (60%)**
-   - Computes BGR color histograms for each image
-   - Uses correlation method to compare histograms
-   - Captures overall color distribution
+The algorithm combines three complementary approaches:
 
-2. **Structural Similarity (40%)**
-   - Resizes images to 64x64 for comparison
+1. **Edge-based Similarity (40% weight)**
+   - Resizes images to 128x128 for standardization
    - Converts to grayscale
-   - Computes Mean Squared Error (MSE)
-   - Converts MSE to similarity score
+   - Applies Canny edge detection (thresholds: 50, 150)
+   - Compares edge maps to focus on shape and contours
+   - Best for distinguishing objects with different shapes
+
+2. **Color Histogram Comparison (30% weight)**
+   - Computes BGR color histograms (256 bins per channel)
+   - Uses correlation method (cv::HISTCMP_CORREL)
+   - Captures overall color distribution
+   - Best for distinguishing objects with different colors
+
+3. **Binary Mask Structural Similarity (30% weight)**
+   - Applies binary threshold (threshold: 200) to separate foreground from background
+   - Compares binary masks pixel-by-pixel
+   - Focuses on overall structure and filled regions
+   - Best for distinguishing objects with different sizes or densities
+
+4. **Non-linear Transformation**
+   - After combining the three metrics, applies cubic transformation (x³)
+   - Spreads out similarity scores for better discrimination
+   - Makes differences between images more apparent
 
 ### Similarity Score Interpretation
 

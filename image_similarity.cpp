@@ -356,7 +356,6 @@ public:
  */
 int main(int argc, char** argv) {
     std::cout << "=== Image Similarity Analyzer ===" << std::endl;
-    std::cout << "Author: Claude Code" << std::endl;
     std::cout << "================================\n" << std::endl;
 
     std::string directory = "Data/Images";
