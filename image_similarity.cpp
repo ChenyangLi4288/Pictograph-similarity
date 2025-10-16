@@ -25,7 +25,16 @@ private:
     std::vector<ImageData> images;
     std::vector<std::vector<double>> similarityMatrix;
 
-    // Load all images from directory recursively
+    /**
+     * @brief Load image files from a directory and precompute per-image features.
+     *
+     * Recursively traverses the given `directory`, reads regular files with extensions
+     * .png, .jpg, .jpeg, or .bmp (case-insensitive), and for each successfully loaded image
+     * stores its path, filename, original image, computed color histogram, edge map, and
+     * binary mask into the analyzer's internal image list.
+     *
+     * @param directory Root directory to search for image files.
+     */
     void loadImages(const std::string& directory) {
         std::cout << "Loading images from: " << directory << std::endl;
 
@@ -57,7 +66,16 @@ private:
         std::cout << "Total images loaded: " << images.size() << std::endl;
     }
 
-    // Preprocess image: compute edges and binary mask
+    /**
+     * @brief Prepare a fixed-size grayscale image and compute its edge map and binary mask.
+     *
+     * Resizes the input to 128x128, converts it to grayscale, computes edges using the
+     * Canny detector, and computes an inverted binary mask via thresholding.
+     *
+     * @param image Input BGR image.
+     * @param edges Output single-channel edge map (128x128). Edges are produced by Canny with low/high thresholds 50/150 and use 0/255 pixel values.
+     * @param binary Output single-channel binary mask (128x128). Produced by thresholding the grayscale image at 200 with inversion (resulting pixels are 0 or 255).
+     */
     void preprocessImage(const cv::Mat& image, cv::Mat& edges, cv::Mat& binary) {
         // Resize to standard size
         cv::Mat resized;
@@ -74,7 +92,16 @@ private:
         cv::threshold(gray, binary, 200, 255, cv::THRESH_BINARY_INV);
     }
 
-    // Compute color histogram for an image
+    /**
+     * @brief Computes a concatenated color histogram for a BGR image.
+     *
+     * Produces a single-column histogram containing three 256-bin channel histograms
+     * stacked in B, G, R order. Each channel histogram is normalized to the range [0, 1].
+     *
+     * @param image Input 3-channel BGR image.
+     * @param histogram Output single-column cv::Mat with size 768x1 (256 bins × 3 channels),
+     *                  containing the normalized B, then G, then R histograms.
+     */
     void computeHistogram(const cv::Mat& image, cv::Mat& histogram) {
         int histSize = 256;
         float range[] = {0, 256};
@@ -100,7 +127,17 @@ private:
         cv::vconcat(histogram, histR, histogram);
     }
 
-    // Calculate similarity between two images using precomputed features
+    /**
+     * @brief Computes a similarity score between two images using their precomputed features.
+     *
+     * Combines edge-map, color-histogram, and binary-mask similarities into a single score
+     * that expresses overall visual similarity between the two images.
+     *
+     * @param img1 First image metadata and precomputed features (histogram, edges, binary).
+     * @param img2 Second image metadata and precomputed features (histogram, edges, binary).
+     * @return double Similarity score in the range [0.0, 1.0], where 1.0 indicates identical
+     *                images according to the combined feature metrics and 0.0 indicates no similarity.
+     */
     double calculateSimilarity(const ImageData& img1, const ImageData& img2) {
         // Method 1: Edge-based similarity (focuses on shape/contour) - 40% weight
         cv::Mat edgeDiff;
@@ -127,7 +164,14 @@ private:
         return std::max(0.0, std::min(1.0, combinedSimilarity));
     }
 
-    // Compute the full similarity matrix
+    /**
+     * @brief Builds the full pairwise image similarity matrix.
+     *
+     * Resizes and populates the member `similarityMatrix` to N×N (N = number of loaded images)
+     * with similarity scores for every image pair. Diagonal entries are set to 1.0 (self-similarity),
+     * symmetric entries are mirrored to avoid redundant computation, and remaining pairs are computed
+     * and stored. Progress messages are written to standard output during processing.
+     */
     void computeSimilarityMatrix() {
         size_t n = images.size();
         similarityMatrix.resize(n, std::vector<double>(n, 0.0));
@@ -152,7 +196,15 @@ private:
         std::cout << "Similarity matrix computed successfully!" << std::endl;
     }
 
-    // Export matrix to CSV file
+    /**
+     * @brief Writes the current similarity matrix and image filenames to a CSV file.
+     *
+     * Writes a CSV whose first row is a header of image filenames and whose subsequent
+     * rows contain each image filename followed by its similarity scores to every image.
+     * On failure to open the file, an error message is printed and no file is written.
+     *
+     * @param filename Path to the output CSV file.
+     */
     void exportToCSV(const std::string& filename) {
         std::ofstream file(filename);
 
@@ -181,12 +233,27 @@ private:
         std::cout << "\nSimilarity matrix exported to: " << filename << std::endl;
     }
 
-    // Print top N most similar pairs
+    /**
+     * @brief Prints the top-N most similar image pairs found in the current dataset.
+     *
+     * Prints a ranked list to standard output showing pair rank, similarity score,
+     * and the two filenames for the most similar unique image pairs, sorted by
+     * descending similarity.
+     *
+     * @param topN Maximum number of pairs to print; if greater than the number of available unique pairs,
+     *             all pairs are printed. Default is 10.
+     */
     void printTopSimilarPairs(int topN = 10) {
         struct Pair {
             size_t i, j;
             double similarity;
 
+            /**
+             * @brief Define ordering between two Pair objects based on similarity for descending sort.
+             *
+             * @param other The Pair to compare against.
+             * @return true if this object's similarity is greater than other's similarity, false otherwise.
+             */
             bool operator<(const Pair& other) const {
                 return similarity > other.similarity; // Sort descending
             }
@@ -211,7 +278,13 @@ private:
         }
     }
 
-    // Print statistics
+    /**
+     * @brief Computes and prints aggregate similarity statistics for all unique image pairs.
+     *
+     * Iterates over the upper triangle of the similarity matrix (pairs where i < j),
+     * accumulates sum, minimum, maximum, and count, then prints the number of pairs,
+     * the average similarity, the minimum similarity, and the maximum similarity to stdout.
+     */
     void printStatistics() {
         double sum = 0.0;
         double minSim = 1.0;
@@ -238,6 +311,15 @@ private:
     }
 
 public:
+    /**
+     * @brief Orchestrates image similarity analysis for a directory and writes results to a CSV.
+     *
+     * Loads images from the given directory, computes the pairwise similarity matrix,
+     * exports the matrix to a CSV file, and prints aggregate statistics and the top similar pairs.
+     *
+     * @param directory Path to the root directory containing images to analyze.
+     * @param outputFile Destination CSV filename for the similarity matrix (default: "similarity_matrix.csv").
+     */
     void analyze(const std::string& directory, const std::string& outputFile = "similarity_matrix.csv") {
         // Load all images
         loadImages(directory);
@@ -259,6 +341,19 @@ public:
     }
 };
 
+/**
+ * @brief Program entry point that runs the image similarity analysis and writes results to a CSV file.
+ *
+ * The program prints a header, optionally reads an input directory and output filename from command-line
+ * arguments, constructs an ImageSimilarityAnalyzer, and runs the analysis which loads images, computes
+ * pairwise similarities, exports the similarity matrix to the specified CSV, and prints summary statistics.
+ *
+ * @param argc Number of command-line arguments.
+ * @param argv Command-line arguments where:
+ *             - argv[1] (optional) specifies the input image directory (default: "Data/Images"),
+ *             - argv[2] (optional) specifies the output CSV filename (default: "similarity_matrix.csv").
+ * @return int `0` on successful completion, `1` if an exception is thrown during execution.
+ */
 int main(int argc, char** argv) {
     std::cout << "=== Image Similarity Analyzer ===" << std::endl;
     std::cout << "Author: Claude Code" << std::endl;
