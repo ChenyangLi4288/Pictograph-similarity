@@ -1,0 +1,21 @@
+# Test-specific ignore patterns (append to .gitignore)
+
+# Test temporary directories
+test_images_temp/
+tests/test_images_temp/
+
+# Test output files
+test_similarity.csv
+format_test.csv
+*_test.csv
+
+# Google Test artifacts
+*.gcov
+*.gcda
+*.gcno
+gtest_*.xml
+
+# Test build artifacts  
+build/tests/
+tests/CMakeFiles/
+tests/*.cmake
