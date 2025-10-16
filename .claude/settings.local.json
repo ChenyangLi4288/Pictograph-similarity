@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./build/image_similarity.exe:*)",
+      "Bash(cmake --build:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

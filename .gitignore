@@ -208,3 +208,5 @@ __marimo__/
 
 # Project specific
 Data/Images/
+*.csv
+similarity*.csv

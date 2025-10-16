@@ -6,13 +6,13 @@ A C++ application that analyzes similarity between images using multiple compute
 
 - Recursively loads all images from a directory
 - Computes similarity using:
-  - **Color Histogram Comparison** (50% weight): Analyzes color distribution - most important for pictographs
-  - **Edge-based Similarity** (40% weight): Analyzes shape and contours using Canny edge detection
-  - **Binary Mask Structural Similarity** (10% weight): Compares pixel-level structure
-  - **Non-linear Transformation**: Applies cubic transformation to spread similarity scores
+  - **Foreground-Only Color Histogram** (60% weight): Analyzes color distribution of the object only, excluding white background
+  - **Outer Boundary Detection** (30% weight): Compares external silhouettes, ignoring internal patterns
+  - **Binary Mask Similarity** (10% weight): Compares overall shape and filled area
+- Optimized for pictographs with uniform white backgrounds
 - Generates a full similarity matrix
 - Exports results to CSV format
-- Displays statistics and top similar pairs
+- Displays statistics and top 15 similar pairs
 
 ## Requirements
 
@@ -156,38 +156,39 @@ Maximum similarity: 0.8967
 
 The algorithm combines three complementary approaches, optimized for pictographs with uniform white backgrounds:
 
-1. **Color Histogram Comparison (50% weight)** - MOST IMPORTANT
-   - Computes BGR color histograms (256 bins per channel)
+1. **Foreground-Only Color Histogram Comparison (60% weight)**
+   - Computes BGR color histograms (256 bins per channel) **only on the foreground object**
+   - Uses binary mask to exclude white background pixels from histogram calculation
    - Uses correlation method (cv::HISTCMP_CORREL)
-   - Captures overall color distribution
+   - Captures the actual object's color distribution without background contamination
    - Best for distinguishing objects with different colors
    - Highest weight because color is the primary differentiator in pictographs
 
-2. **Edge-based Similarity (40% weight)**
+2. **Outer Boundary Similarity (30% weight)**
    - Resizes images to 128x128 for standardization
-   - Converts to grayscale
-   - Applies Canny edge detection (thresholds: 50, 150)
-   - Compares edge maps to focus on shape and contours
-   - Best for distinguishing objects with different shapes
+   - Extracts only the **external contour/silhouette** of the object
+   - Ignores internal details (like basketball lines or pumpkin ridges)
+   - Uses RETR_EXTERNAL to get outer boundary only
+   - Compares boundary shapes to focus on overall silhouette
+   - Best for distinguishing objects with different overall shapes
 
-3. **Binary Mask Structural Similarity (10% weight)** - REDUCED
+3. **Binary Mask Structural Similarity (10% weight)**
    - Applies binary threshold (threshold: 200) to separate foreground from background
    - Compares binary masks pixel-by-pixel
-   - Focuses on overall structure and filled regions
-   - Lower weight because all pictographs have uniform white backgrounds
+   - Focuses on overall filled area and structure
+   - Lower weight because outer boundary already captures shape information
 
-4. **Non-linear Transformation**
-   - After combining the three metrics, applies cubic transformation (x³)
-   - Spreads out similarity scores for better discrimination
-   - Makes differences between images more apparent
+4. **Linear Combination (No Transformation)**
+   - Combines the three metrics using weighted sum: 0.6 × color + 0.3 × boundary + 0.1 × structure
+   - No power transformation needed since foreground-only histograms provide excellent discrimination
 
 ### Similarity Score Interpretation
 
-- **0.9 - 1.0**: Nearly identical images
-- **0.7 - 0.9**: Very similar (same category, similar objects)
-- **0.5 - 0.7**: Moderately similar (some common features)
-- **0.3 - 0.5**: Slightly similar (few common features)
-- **0.0 - 0.3**: Very different images
+- **0.9 - 1.0**: Nearly identical images (duplicates or extremely similar)
+- **0.7 - 0.9**: Very similar (similar color and shape)
+- **0.5 - 0.7**: Moderately similar (similar color or shape)
+- **0.3 - 0.5**: Somewhat similar (some shared features)
+- **0.2 - 0.3**: Slightly similar (few shared features)
 
 ## Supported Image Formats
 
