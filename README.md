@@ -1,6 +1,6 @@
 # Pictograph Similarity Analyzer
 
-A C++ application that analyzes similarity between images using multiple computer vision techniques.
+Analyzes similarity between images using computer vision techniques and deep learning. Provides both traditional CV-based (C++) and CNN-based (Python) approaches.
 
 ## Features
 
@@ -81,7 +81,11 @@ g++ -std=c++17 image_similarity.cpp -o image_similarity \
 
 ## Usage
 
-### Basic Usage
+### Approach 1: Traditional CV-based (C++)
+
+Hand-crafted features optimized for pictographs with white backgrounds.
+
+#### Basic Usage
 
 ```bash
 # Run with default directory (Data/Images)
@@ -99,11 +103,59 @@ g++ -std=c++17 image_similarity.cpp -o image_similarity \
 - **Argument 1**: Input directory containing images (default: `Data/Images`)
 - **Argument 2**: Output CSV filename (default: `similarity_matrix.csv`)
 
-### Example
+#### Example
 
 ```bash
 ./build/image_similarity Data/Images pictograph_similarity.csv
 ```
+
+### Approach 2: CNN-based (Python)
+
+Uses pre-trained deep learning models (ResNet50) for automatic feature extraction.
+
+#### Setup
+
+1. **Install Python dependencies:**
+```bash
+pip install -r requirements.txt
+```
+
+2. **Run CNN similarity analyzer:**
+```bash
+# Basic usage (default: Data/Images)
+python cnn_similarity.py
+
+# Specify directory and output
+python cnn_similarity.py Data/Images similarity_cnn.csv
+
+# Use different model
+python cnn_similarity.py --model resnet101 Data/Images output.csv
+```
+
+#### Available Models
+
+- `resnet50` (default): Fast, good balance
+- `resnet101`: More accurate, slower
+- `efficientnet_b0`: Efficient, compact
+
+#### Example
+
+```bash
+python cnn_similarity.py Data/Images similarity_cnn.csv --model resnet50
+```
+
+#### Advantages of CNN Approach
+
+- Automatically learns features from millions of images
+- No manual feature engineering
+- Captures high-level semantic similarity
+- Works well for complex visual patterns
+
+#### Disadvantages
+
+- Requires PyTorch installation (~2GB)
+- Slower than hand-crafted features
+- Less interpretable
 
 ## Output
 
