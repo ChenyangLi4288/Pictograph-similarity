@@ -144,17 +144,17 @@ private:
         cv::absdiff(img1.edges, img2.edges, edgeDiff);
         double edgeSimilarity = 1.0 - (cv::sum(edgeDiff)[0] / (128.0 * 128.0 * 255.0));
 
-        // Method 2: Histogram comparison (color distribution) - 30% weight
+        // Method 2: Histogram comparison (color distribution) - 50% weight (INCREASED - color is most important)
         double histSimilarity = cv::compareHist(img1.histogram, img2.histogram, cv::HISTCMP_CORREL);
 
-        // Method 3: Binary mask similarity (structural similarity) - 30% weight
+        // Method 3: Binary mask similarity (structural similarity) - 10% weight (DECREASED - uniform backgrounds)
         cv::Mat diff;
         cv::absdiff(img1.binary, img2.binary, diff);
         double pixelDiff = cv::sum(diff)[0] / (128.0 * 128.0 * 255.0);
         double structSimilarity = 1.0 - pixelDiff;
 
-        // Combine all methods with weights
-        double combinedSimilarity = 0.4 * edgeSimilarity + 0.3 * histSimilarity + 0.3 * structSimilarity;
+        // Combine all methods with weights: Color (50%) + Shape (40%) + Structure (10%)
+        double combinedSimilarity = 0.4 * edgeSimilarity + 0.5 * histSimilarity + 0.1 * structSimilarity;
 
         // Apply non-linear transformation to spread out the scores
         // This makes differences more apparent

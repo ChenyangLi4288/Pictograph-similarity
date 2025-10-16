@@ -6,9 +6,9 @@ A C++ application that analyzes similarity between images using multiple compute
 
 - Recursively loads all images from a directory
 - Computes similarity using:
+  - **Color Histogram Comparison** (50% weight): Analyzes color distribution - most important for pictographs
   - **Edge-based Similarity** (40% weight): Analyzes shape and contours using Canny edge detection
-  - **Color Histogram Comparison** (30% weight): Analyzes color distribution
-  - **Binary Mask Structural Similarity** (30% weight): Compares pixel-level structure
+  - **Binary Mask Structural Similarity** (10% weight): Compares pixel-level structure
   - **Non-linear Transformation**: Applies cubic transformation to spread similarity scores
 - Generates a full similarity matrix
 - Exports results to CSV format
@@ -154,26 +154,27 @@ Maximum similarity: 0.8967
 
 ### Similarity Metrics
 
-The algorithm combines three complementary approaches:
+The algorithm combines three complementary approaches, optimized for pictographs with uniform white backgrounds:
 
-1. **Edge-based Similarity (40% weight)**
+1. **Color Histogram Comparison (50% weight)** - MOST IMPORTANT
+   - Computes BGR color histograms (256 bins per channel)
+   - Uses correlation method (cv::HISTCMP_CORREL)
+   - Captures overall color distribution
+   - Best for distinguishing objects with different colors
+   - Highest weight because color is the primary differentiator in pictographs
+
+2. **Edge-based Similarity (40% weight)**
    - Resizes images to 128x128 for standardization
    - Converts to grayscale
    - Applies Canny edge detection (thresholds: 50, 150)
    - Compares edge maps to focus on shape and contours
    - Best for distinguishing objects with different shapes
 
-2. **Color Histogram Comparison (30% weight)**
-   - Computes BGR color histograms (256 bins per channel)
-   - Uses correlation method (cv::HISTCMP_CORREL)
-   - Captures overall color distribution
-   - Best for distinguishing objects with different colors
-
-3. **Binary Mask Structural Similarity (30% weight)**
+3. **Binary Mask Structural Similarity (10% weight)** - REDUCED
    - Applies binary threshold (threshold: 200) to separate foreground from background
    - Compares binary masks pixel-by-pixel
    - Focuses on overall structure and filled regions
-   - Best for distinguishing objects with different sizes or densities
+   - Lower weight because all pictographs have uniform white backgrounds
 
 4. **Non-linear Transformation**
    - After combining the three metrics, applies cubic transformation (x³)
