@@ -67,13 +67,13 @@ private:
     }
 
     /**
-     * @brief Prepare a fixed-size grayscale image and compute its edge map and binary mask.
+     * @brief Prepare a fixed-size grayscale image and compute its outer contour and binary mask.
      *
-     * Resizes the input to 128x128, converts it to grayscale, computes edges using the
-     * Canny detector, and computes an inverted binary mask via thresholding.
+     * Resizes the input to 128x128, converts it to grayscale, extracts the outer boundary/silhouette
+     * of the object (ignoring internal details), and computes an inverted binary mask via thresholding.
      *
      * @param image Input BGR image.
-     * @param edges Output single-channel edge map (128x128). Edges are produced by Canny with low/high thresholds 50/150 and use 0/255 pixel values.
+     * @param edges Output single-channel contour map (128x128). Contains only the external boundary of the object, ignoring internal patterns.
      * @param binary Output single-channel binary mask (128x128). Produced by thresholding the grayscale image at 200 with inversion (resulting pixels are 0 or 255).
      */
     void preprocessImage(const cv::Mat& image, cv::Mat& edges, cv::Mat& binary) {
@@ -85,22 +85,29 @@ private:
         cv::Mat gray;
         cv::cvtColor(resized, gray, cv::COLOR_BGR2GRAY);
 
-        // Compute edge map
-        cv::Canny(gray, edges, 50, 150);
-
-        // Compute binary threshold
+        // Compute binary threshold to separate object from white background
         cv::threshold(gray, binary, 200, 255, cv::THRESH_BINARY_INV);
+
+        // Find contours and draw only the EXTERNAL boundary (not internal details)
+        std::vector<std::vector<cv::Point>> contours;
+        std::vector<cv::Vec4i> hierarchy;
+        cv::findContours(binary.clone(), contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+        // Create edge map with only outer boundary
+        edges = cv::Mat::zeros(binary.size(), CV_8UC1);
+        cv::drawContours(edges, contours, -1, cv::Scalar(255), 2);  // Draw all external contours
     }
 
     /**
-     * @brief Computes a concatenated color histogram for a BGR image.
+     * @brief Computes a concatenated color histogram for ONLY the foreground object, excluding white background.
      *
      * Produces a single-column histogram containing three 256-bin channel histograms
      * stacked in B, G, R order. Each channel histogram is normalized to the range [0, 1].
+     * Uses a mask to compute histogram only on non-white pixels (the object itself).
      *
      * @param image Input 3-channel BGR image.
      * @param histogram Output single-column cv::Mat with size 768x1 (256 bins × 3 channels),
-     *                  containing the normalized B, then G, then R histograms.
+     *                  containing the normalized B, then G, then R histograms of the foreground object only.
      */
     void computeHistogram(const cv::Mat& image, cv::Mat& histogram) {
         int histSize = 256;
@@ -109,13 +116,22 @@ private:
         bool uniform = true;
         bool accumulate = false;
 
+        // Create mask to exclude white background (threshold > 200 = white background)
+        cv::Mat resized;
+        cv::resize(image, resized, cv::Size(128, 128));
+        cv::Mat gray;
+        cv::cvtColor(resized, gray, cv::COLOR_BGR2GRAY);
+        cv::Mat mask;
+        cv::threshold(gray, mask, 200, 255, cv::THRESH_BINARY_INV);  // Mask = foreground only
+
+        // Split channels and compute histograms ONLY on foreground pixels
         std::vector<cv::Mat> bgrPlanes;
-        cv::split(image, bgrPlanes);
+        cv::split(resized, bgrPlanes);
 
         cv::Mat histB, histG, histR;
-        cv::calcHist(&bgrPlanes[0], 1, 0, cv::Mat(), histB, 1, &histSize, &histRange, uniform, accumulate);
-        cv::calcHist(&bgrPlanes[1], 1, 0, cv::Mat(), histG, 1, &histSize, &histRange, uniform, accumulate);
-        cv::calcHist(&bgrPlanes[2], 1, 0, cv::Mat(), histR, 1, &histSize, &histRange, uniform, accumulate);
+        cv::calcHist(&bgrPlanes[0], 1, 0, mask, histB, 1, &histSize, &histRange, uniform, accumulate);
+        cv::calcHist(&bgrPlanes[1], 1, 0, mask, histG, 1, &histSize, &histRange, uniform, accumulate);
+        cv::calcHist(&bgrPlanes[2], 1, 0, mask, histR, 1, &histSize, &histRange, uniform, accumulate);
 
         // Normalize histograms
         cv::normalize(histB, histB, 0, 1, cv::NORM_MINMAX);
@@ -130,8 +146,9 @@ private:
     /**
      * @brief Computes a similarity score between two images using their precomputed features.
      *
-     * Combines edge-map, color-histogram, and binary-mask similarities into a single score
-     * that expresses overall visual similarity between the two images.
+     * Combines outer-boundary shape, color-histogram, and binary-mask similarities into a single score
+     * that expresses overall visual similarity between the two images. Optimized for pictographs with
+     * uniform white backgrounds where color is most important and only outer silhouette matters for shape.
      *
      * @param img1 First image metadata and precomputed features (histogram, edges, binary).
      * @param img2 Second image metadata and precomputed features (histogram, edges, binary).
@@ -139,26 +156,25 @@ private:
      *                images according to the combined feature metrics and 0.0 indicates no similarity.
      */
     double calculateSimilarity(const ImageData& img1, const ImageData& img2) {
-        // Method 1: Edge-based similarity (focuses on shape/contour) - 40% weight
+        // Method 1: Outer boundary similarity (focuses on silhouette only, not internal details) - 30% weight
         cv::Mat edgeDiff;
         cv::absdiff(img1.edges, img2.edges, edgeDiff);
         double edgeSimilarity = 1.0 - (cv::sum(edgeDiff)[0] / (128.0 * 128.0 * 255.0));
 
-        // Method 2: Histogram comparison (color distribution) - 30% weight
+        // Method 2: Histogram comparison (color distribution) - 60% weight (color is important but balanced with shape)
         double histSimilarity = cv::compareHist(img1.histogram, img2.histogram, cv::HISTCMP_CORREL);
 
-        // Method 3: Binary mask similarity (structural similarity) - 30% weight
+        // Method 3: Binary mask similarity (overall shape/area) - 10% weight (uniform backgrounds make this less critical)
         cv::Mat diff;
         cv::absdiff(img1.binary, img2.binary, diff);
         double pixelDiff = cv::sum(diff)[0] / (128.0 * 128.0 * 255.0);
         double structSimilarity = 1.0 - pixelDiff;
 
-        // Combine all methods with weights
-        double combinedSimilarity = 0.4 * edgeSimilarity + 0.3 * histSimilarity + 0.3 * structSimilarity;
+        // Combine all methods with weights: Color (60%) + Outer Shape (30%) + Overall Structure (10%)
+        double combinedSimilarity = 0.6 * histSimilarity + 0.3 * edgeSimilarity + 0.1 * structSimilarity;
 
-        // Apply non-linear transformation to spread out the scores
-        // This makes differences more apparent
-        combinedSimilarity = std::pow(combinedSimilarity, 3.0);
+        // No transformation needed - foreground-only histograms already provide excellent discrimination
+        // Return the linear combination directly
 
         // Ensure similarity is in [0, 1] range
         return std::max(0.0, std::min(1.0, combinedSimilarity));
